@@ -1,0 +1,16 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.haydra.v10'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.haydra.v10'
+        minSdk 24
+        targetSdk 35
+        versionCode 10
+        versionName "10.0"
+    }
+}

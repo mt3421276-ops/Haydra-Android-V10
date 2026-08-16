@@ -1,0 +1,552 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+MODEL="$HOME/Haydra/models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+LLAMA="$HOME/llama.cpp/build/bin/llama-cli"
+USER_MEMORY="$HOME/Haydra/memory/user.json"
+CONVERSATION="$HOME/Haydra/memory/conversation.txt"
+
+get_name() {
+    grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' "$USER_MEMORY" |
+        sed 's/.*:[[:space:]]*"//; s/"$//'
+}
+
+NAME="$(get_name)"
+
+echo "🐉 Haydra V1"
+echo "👤 المستخدم: $NAME"
+echo "🧠 الذاكرة: مفعّلة"
+echo
+
+save_memory() {
+    {
+        printf '[%s]\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+        printf '👤 %s: %s\n' "$NAME" "$1"
+        printf '🐉 Haydra: %s\n\n' "$2"
+    } >> "$CONVERSATION"
+}
+
+# =========================
+# V9 - حفظ الذاكرة بدون تكرار
+# =========================
+remember_fact() {
+    local FACT="$1"
+
+    [ -z "$FACT" ] && return
+
+    if grep -Fxq "$FACT" "$FACTS" 2>/dev/null; then
+        return
+    fi
+
+    printf '%s\n' "$FACT" >> "$FACTS"
+}
+
+while true; do
+    printf "> "
+    IFS= read -r QUESTION || break
+
+    # =========================
+    # أوامر Haydra الداخلية
+    # =========================
+
+    # =========================
+    # استرجاع المشروع والعمل والأدوات
+    # =========================
+
+    if [ "$QUESTION" = "ما اسم مشروعي؟" ] || \
+       [ "$QUESTION" = "ما اسم مشروعي" ] || \
+       [ "$QUESTION" = "ما المشروع الذي أعمل عليه؟" ] || \
+       [ "$QUESTION" = "ما المشروع الذي اعمل عليه؟" ]; then
+
+        FACT=$(grep '^المشروع:' "$HOME/Haydra/memory/facts.txt" | head -1 | sed 's/^المشروع:[[:space:]]*//')
+
+        if [ -n "$FACT" ]; then
+            ANSWER="اسم مشروعك هو $FACT."
+        else
+            ANSWER="لا توجد لدي معلومة محفوظة عن اسم مشروعك."
+        fi
+
+        echo "🐉 $ANSWER"
+        save_memory "$QUESTION" "$ANSWER"
+        echo
+        continue
+    fi
+
+    if [ "$QUESTION" = "ماذا أعمل؟" ] || \
+       [ "$QUESTION" = "ماذا اعمل؟" ] || \
+       [ "$QUESTION" = "على ماذا أعمل؟" ] || \
+       [ "$QUESTION" = "على ماذا اعمل؟" ] || \
+       [ "$QUESTION" = "ماذا أعمل عليه؟" ] || \
+       [ "$QUESTION" = "ماذا اعمل عليه؟" ] || \
+       [ "$QUESTION" = "ما الذي أعمل عليه؟" ] || \
+       [ "$QUESTION" = "ما الذي اعمل عليه؟" ]; then
+
+        FACTS=$(grep '^عمل:' "$HOME/Haydra/memory/facts.txt" | sed 's/^عمل:[[:space:]]*//' | sort -u)
+
+        if [ -n "$FACTS" ]; then
+            ANSWER="أعمالك المحفوظة:"
+            while IFS= read -r FACT; do
+                [ -n "$FACT" ] && ANSWER="$ANSWER\n• $FACT"
+            done <<< "$FACTS"
+        else
+            ANSWER="لا توجد لدي معلومات محفوظة عما تعمل عليه."
+        fi
+
+        printf "🐉 %b\n" "$ANSWER"
+        save_memory "$QUESTION" "$(printf '%b' "$ANSWER")"
+        echo
+        continue
+    fi
+
+    if [ "$QUESTION" = "ما الأدوات التي أستخدمها؟" ] || \
+       [ "$QUESTION" = "ما الادوات التي استخدمها؟" ] || \
+       [ "$QUESTION" = "ما أدواتي؟" ] || \
+       [ "$QUESTION" = "ما ادواتي؟" ]; then
+
+        FACTS=$(grep '^أداة:' "$HOME/Haydra/memory/facts.txt" | sed 's/^أداة:[[:space:]]*//' | sort -u)
+
+        if [ -n "$FACTS" ]; then
+            ANSWER="أدواتك المحفوظة:"
+            while IFS= read -r FACT; do
+                [ -n "$FACT" ] && ANSWER="$ANSWER\n• $FACT"
+            done <<< "$FACTS"
+        else
+            ANSWER="لا توجد لدي أدوات محفوظة."
+        fi
+
+        printf "🐉 %b\n" "$ANSWER"
+        save_memory "$QUESTION" "$(printf '%b' "$ANSWER")"
+        echo
+        continue
+    fi
+
+    # =========================
+    # V5 - التعلم التلقائي
+    # =========================
+
+    if [[ "$QUESTION" == "بدأت أتعلم "* ]] || \
+       [[ "$QUESTION" == "بدات اتعلم "* ]] || \
+       [[ "$QUESTION" == "بدأت اتعلم "* ]] || \
+       [[ "$QUESTION" == "بدات أتعلم "* ]]; then
+
+        LEARN="${QUESTION#بدأت أتعلم }"
+
+        if [ "$LEARN" = "$QUESTION" ]; then
+            LEARN="${QUESTION#بدات اتعلم }"
+        fi
+
+        if [ "$LEARN" = "$QUESTION" ]; then
+            LEARN="${QUESTION#بدأت اتعلم }"
+        fi
+
+        if [ "$LEARN" = "$QUESTION" ]; then
+            LEARN="${QUESTION#بدات أتعلم }"
+        fi
+
+        if [ -n "$LEARN" ]; then
+            if ! grep -Fxq "تعلم: $LEARN" "$HOME/Haydra/memory/facts.txt"; then
+                printf 'تعلم: %s\n' "$LEARN" >> "$HOME/Haydra/memory/facts.txt"
+            fi
+
+            echo "🧠 حفظت في ذاكرتي: أنك بدأت تتعلم $LEARN."
+        else
+            echo "⚠️ لم أحدد ماذا بدأت تتعلم."
+        fi
+
+        echo
+        continue
+    fi
+
+    # =========================
+    # استرجاع ما يتعلمه المستخدم
+    # =========================
+
+    if [ "$QUESTION" = "ماذا بدأت أتعلم؟" ] || \
+       [ "$QUESTION" = "ماذا بدأت اتعلم؟" ] || \
+       [ "$QUESTION" = "ماذا أتعلم؟" ] || \
+       [ "$QUESTION" = "ماذا اتعلم؟" ] || \
+       [ "$QUESTION" = "ما الذي أتعلمه؟" ] || \
+       [ "$QUESTION" = "ما الذي اتعلمه؟" ]; then
+
+        FACTS=$(grep '^تعلم:' "$HOME/Haydra/memory/facts.txt" | \
+            sed 's/^تعلم:[[:space:]]*//' | sort -u)
+
+        if [ -n "$FACTS" ]; then
+            ANSWER="الأشياء التي بدأت تتعلمها:"
+            while IFS= read -r FACT; do
+                [ -n "$FACT" ] && ANSWER="$ANSWER\n• $FACT"
+            done <<< "$FACTS"
+
+            printf "🐉 %b\n" "$ANSWER"
+            save_memory "$QUESTION" "$(printf '%b' "$ANSWER")"
+        else
+            echo "🐉 لا توجد لدي معلومات محفوظة عما بدأت تتعلمه."
+        fi
+
+        echo
+        continue
+    fi
+
+    # =========================
+    # V6 - إدارة الذاكرة
+    # =========================
+
+    if [[ "$QUESTION" == "/forget "* ]]; then
+        TARGET="${QUESTION#/forget }"
+
+        if [ -z "$TARGET" ]; then
+            echo "🐉 استخدم: /forget المعلومة"
+            echo
+            continue
+        fi
+
+        if [ "$TARGET" = "الاسم: محمد" ] || [ "$TARGET" = "المشروع: Haydra" ]; then
+            echo "🔒 لا يمكن حذف هذه المعلومة الأساسية."
+            echo
+            continue
+        fi
+
+        if grep -Fqx "$TARGET" "$HOME/Haydra/memory/facts.txt"; then
+            grep -Fvx "$TARGET" "$HOME/Haydra/memory/facts.txt" > "$HOME/Haydra/memory/.facts.tmp"
+            mv "$HOME/Haydra/memory/.facts.tmp" "$HOME/Haydra/memory/facts.txt"
+            echo "🧹 حذفت من ذاكرتي: $TARGET"
+        else
+            echo "🐉 لم أجد هذه المعلومة في ذاكرتي:"
+            echo "   $TARGET"
+        fi
+
+        echo
+        continue
+    fi
+
+    if [ "$QUESTION" = "/clear-facts" ]; then
+        FACTS="$HOME/Haydra/memory/facts.txt"
+    
+    # =========================
+    # V9 - حفظ الذاكرة بدون تكرار
+    # =========================
+
+
+
+
+
+    # =========================
+    # V9 - إدارة الذاكرة
+    # =========================
+
+
+        TEMP_FACTS="$HOME/Haydra/memory/.facts.keep"
+
+        {
+            grep '^الاسم:' "$FACTS" | head -1
+            grep '^المشروع:' "$FACTS" | head -1
+        } > "$TEMP_FACTS"
+
+        mv "$TEMP_FACTS" "$FACTS"
+
+        echo "🧹 تم مسح المعلومات الإضافية."
+        echo "🔒 الاسم والمشروع الأساسيان محفوظان."
+        echo "📖 سجل المحادثات لم يتم حذفه."
+        echo
+        continue
+    fi
+
+    # =========================
+    # حفظ معلومة يدويًا
+    # =========================
+    if [[ "$QUESTION" == /remember\ * ]]; then
+        MEMORY_TEXT="${QUESTION#/remember }"
+
+        if [ -z "$MEMORY_TEXT" ]; then
+            echo "⚠️ اكتب المعلومة بعد /remember"
+            echo
+            continue
+        fi
+
+        case "$MEMORY_TEXT" in
+            أحب\ *|احب\ *)
+                FACT="${MEMORY_TEXT#أحب }"
+                [ "$FACT" = "$MEMORY_TEXT" ] && FACT="${MEMORY_TEXT#احب }"
+                echo "اهتمام: $FACT" >> "$HOME/Haydra/memory/facts.txt"
+                echo "🧠 حفظت: اهتمام = $FACT"
+                ;;
+
+            أستخدم\ *|استخدم\ *)
+                FACT="${MEMORY_TEXT#أستخدم }"
+                [ "$FACT" = "$MEMORY_TEXT" ] && FACT="${MEMORY_TEXT#استخدم }"
+                echo "أداة: $FACT" >> "$HOME/Haydra/memory/facts.txt"
+                echo "🧠 حفظت: أداة = $FACT"
+                ;;
+
+            أعمل\ على\ *|اعمل\ على\ *)
+                FACT="${MEMORY_TEXT#أعمل على }"
+                [ "$FACT" = "$MEMORY_TEXT" ] && FACT="${MEMORY_TEXT#اعمل على }"
+                echo "عمل: $FACT" >> "$HOME/Haydra/memory/facts.txt"
+                echo "🧠 حفظت: عمل = $FACT"
+                ;;
+
+            *)
+                echo "معلومة: $MEMORY_TEXT" >> "$HOME/Haydra/memory/facts.txt"
+                echo "🧠 حفظت المعلومة."
+                ;;
+        esac
+
+        echo
+        continue
+    fi
+
+    if [ "$QUESTION" = "/memory" ]; then
+        echo "🧠 الذاكرة الثابتة:"
+        if [ -s "$HOME/Haydra/memory/facts.txt" ]; then
+            cat "$HOME/Haydra/memory/facts.txt"
+        else
+            echo "(لا توجد معلومات ثابتة)"
+        fi
+
+        echo
+        echo "📖 سجل المحادثات:"
+        if [ -s "$CONVERSATION" ]; then
+            tail -40 "$CONVERSATION"
+        else
+            echo "(سجل المحادثات فارغ)"
+        fi
+
+        echo
+        continue
+    fi
+
+    if [ "$QUESTION" = "/clear-memory" ]; then
+        : > "$CONVERSATION"
+        echo "🧹 تم مسح ذاكرة المحادثة."
+        echo
+        continue
+    fi
+
+    if [ "$QUESTION" = "/exit" ]; then
+        echo "🐉 إلى اللقاء يا $NAME."
+        break
+    fi
+
+    # =========================
+    # هوية المستخدم
+    # =========================
+
+    case "$QUESTION" in
+
+        "ما اسمي؟"|"ما اسمي"|"من أنا؟"|"من انا؟")
+            ANSWER="اسمك $NAME."
+            echo "🐉 $ANSWER"
+            save_memory "$QUESTION" "$ANSWER"
+            echo
+            continue
+            ;;
+
+        "ما اسمك؟"|"ما اسمك")
+            ANSWER="اسمي Haydra."
+            echo "🐉 $ANSWER"
+            save_memory "$QUESTION" "$ANSWER"
+            echo
+            continue
+            ;;
+
+    esac
+
+    # =========================
+    # حفظ معلومات جديدة في الذاكرة
+    # =========================
+
+    FACTS="$HOME/Haydra/memory/facts.txt"
+
+    if [[ "$QUESTION" == أنا\ مهتم\ بـ\ * || "$QUESTION" == انا\ مهتم\ ب* ]]; then
+        FACT="${QUESTION#أنا مهتم بـ }"
+        [ "$FACT" = "$QUESTION" ] && FACT="${QUESTION#انا مهتم ب}"
+        remember_fact "اهتمام: $FACT"
+        echo "🧠 حفظت في ذاكرتي: اهتمامك هو $FACT."
+        echo
+        continue
+    fi
+
+    if [[ "$QUESTION" == أنا\ أحب\ * || "$QUESTION" == انا\ احب\ * ]]; then
+        FACT="${QUESTION#أنا أحب }"
+        [ "$FACT" = "$QUESTION" ] && FACT="${QUESTION#انا احب }"
+        remember_fact "اهتمام: $FACT"
+        echo "🧠 حفظت في ذاكرتي: أنك تحب $FACT."
+        echo
+        continue
+    fi
+
+    if [[ "$QUESTION" == أنا\ أعمل\ على\ * || "$QUESTION" == انا\ اعمل\ على\ * ]]; then
+        FACT="${QUESTION#أنا أعمل على }"
+        [ "$FACT" = "$QUESTION" ] && FACT="${QUESTION#انا اعمل على }"
+        remember_fact "عمل: $FACT"
+        echo "🧠 حفظت في ذاكرتي: أنك تعمل على $FACT."
+        echo
+        continue
+    fi
+
+    if [[ "$QUESTION" == أفضل\ * || "$QUESTION" == افضل\ * ]]; then
+        FACT="${QUESTION#أفضل }"
+        [ "$FACT" = "$QUESTION" ] && FACT="${QUESTION#افضل }"
+        remember_fact "تفضيل: $FACT"
+        echo "🧠 حفظت في ذاكرتي: تفضيلك هو $FACT."
+        echo
+        continue
+    fi
+
+    if [[ "$QUESTION" == أستخدم\ * || "$QUESTION" == استخدم\ * ]]; then
+        FACT="${QUESTION#أستخدم }"
+        [ "$FACT" = "$QUESTION" ] && FACT="${QUESTION#استخدم }"
+        remember_fact "أداة: $FACT"
+        echo "🧠 حفظت في ذاكرتي: أنك تستخدم $FACT."
+        echo
+        continue
+    fi
+
+    # =========================
+    # استرجاع المعلومات من الذاكرة
+    # =========================
+
+    # =========================
+    # استرجاع كل الاهتمامات من الذاكرة
+    # =========================
+
+    if [ "$QUESTION" = "ماذا أحب؟" ] || \
+       [ "$QUESTION" = "ماذا احب؟" ] || \
+       [ "$QUESTION" = "ما الأشياء التي أحبها؟" ] || \
+       [ "$QUESTION" = "ما الاشياء التي احبها؟" ] || \
+       [ "$QUESTION" = "ما اهتمامي؟" ] || \
+       [ "$QUESTION" = "ما اهتماماتي؟" ]; then
+
+        FACTS=$(grep '^اهتمام:' "$HOME/Haydra/memory/facts.txt" | \
+            sed 's/^اهتمام:[[:space:]]*//')
+
+        if [ -n "$FACTS" ]; then
+            ANSWER="اهتماماتك المحفوظة:"
+            while IFS= read -r FACT; do
+                [ -n "$FACT" ] && ANSWER="$ANSWER\n• $FACT"
+            done <<< "$FACTS"
+        else
+            ANSWER="لا توجد لدي معلومات محفوظة عن اهتماماتك."
+        fi
+
+        printf "🐉 %b\n" "$ANSWER"
+        save_memory "$QUESTION" "$(printf '%b' "$ANSWER")"
+        echo
+        continue
+    fi
+
+    if [ "$QUESTION" = "على ماذا أعمل؟" ] || [ "$QUESTION" = "على ماذا اعمل؟" ] || [ "$QUESTION" = "ماذا أعمل عليه؟" ] || [ "$QUESTION" = "ماذا اعمل عليه؟" ]; then
+        FACT=$(grep '^عمل:' "$HOME/Haydra/memory/facts.txt" | head -1 | sed 's/^عمل:[[:space:]]*//')
+        if [ -n "$FACT" ]; then
+            ANSWER="أنت تعمل على $FACT."
+        else
+            ANSWER="لا توجد لدي معلومة محفوظة عما تعمل عليه."
+        fi
+        echo "🐉 $ANSWER"
+        save_memory "$QUESTION" "$ANSWER"
+        echo
+        continue
+    fi
+
+    # =========================
+    # أسئلة الذاكرة المباشرة
+    # =========================
+
+    if [ "$QUESTION" = "ما اسم مشروعي؟" ] || [ "$QUESTION" = "ما اسم المشروع الذي أعمل عليه؟" ]; then
+        PROJECT=$(grep '^المشروع:' "$HOME/Haydra/memory/facts.txt" | head -1 | sed 's/^المشروع:[[:space:]]*//')
+        if [ -n "$PROJECT" ]; then
+            ANSWER="اسم مشروعك هو $PROJECT."
+        else
+            ANSWER="لا توجد لدي معلومة محفوظة عن اسم مشروعك."
+        fi
+        echo "🐉 $ANSWER"
+        save_memory "$QUESTION" "$ANSWER"
+        echo
+        continue
+    fi
+
+    # =========================
+    # استرجاع الذاكرة
+    # =========================
+
+    MEMORY_CONTEXT=""
+
+    # =========================
+    # V7 - ذاكرة منظمة
+    # =========================
+
+    # الذاكرة الثابتة: معلومات موثوقة عن المستخدم
+    if [ -s "$HOME/Haydra/memory/facts.txt" ]; then
+        MEMORY_CONTEXT="=== الذاكرة الثابتة ===
+$(cat "$HOME/Haydra/memory/facts.txt")
+"
+    fi
+
+    # سجل المحادثة: سياق فقط وليس ذاكرة ثابتة
+    if [ -s "$CONVERSATION" ]; then
+        MEMORY_CONTEXT="${MEMORY_CONTEXT}
+=== سجل المحادثة (للسياق فقط) ===
+$(tail -6 "$CONVERSATION")
+"
+    fi
+
+    TEMP="$HOME/Haydra/memory/.response.tmp"
+
+    # =========================
+    # تشغيل النموذج
+    # =========================
+
+    "$LLAMA" \
+        -m "$MODEL" \
+        -c 512 \
+        -t 2 \
+        -n 100 \
+        -p "أنت Haydra.
+
+هويتك:
+- اسمك Haydra.
+- أنت مساعد ذكاء اصطناعي محلي.
+- المستخدم اسمه $NAME.
+- تحدث بالعربية.
+- كن واضحًا ومختصرًا.
+- لا تقل إنك Qwen.
+- لا تخترع معلومات غير موجودة.
+
+لديك نوعان من الذاكرة:
+
+1. الذاكرة الثابتة:
+معلومات محفوظة وموثوقة عن المستخدم. استخدمها عندما تكون مرتبطة بالسؤال.
+
+2. سجل المحادثة:
+سياق من محادثات سابقة فقط. لا تعتبره معلومة حالية إذا تعارض مع الذاكرة الثابتة أو إذا تم حذف المعلومة منها.
+
+$MEMORY_CONTEXT
+
+السؤال الحالي:
+$QUESTION
+
+أجب بالعربية وباختصار.
+استخدم الذاكرة الثابتة عندما تكون الإجابة موجودة فيها.
+إذا لم تجد المعلومة، قل إنك لا تعرف بدل اختلاق إجابة.
+
+الإجابة:" > "$TEMP" 2>&1
+
+    ANSWER=$(sed -n '/الإجابة:/,$p' "$TEMP" |
+        sed '1d' |
+        sed '/^\[ Prompt:/d' |
+        sed '/^>/d' |
+        sed '/^$/d' |
+        tr '\n' ' ' |
+        sed 's/[[:space:]]*$//')
+
+    if [ -z "$ANSWER" ]; then
+        ANSWER="لم أتمكن من الحصول على إجابة."
+    fi
+
+    echo "🐉 $ANSWER"
+
+    save_memory "$QUESTION" "$ANSWER"
+
+    rm -f "$TEMP"
+
+    echo
+done
