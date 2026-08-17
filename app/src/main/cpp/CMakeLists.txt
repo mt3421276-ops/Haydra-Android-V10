@@ -11,8 +11,8 @@ add_library(
 target_include_directories(
         haydra
         PRIVATE
-        "${CMAKE_CURRENT_LIST_DIR}/../../../../../../llama.cpp/include"
-        "${CMAKE_CURRENT_LIST_DIR}/../../../../../../llama.cpp/ggml/include"
+        "${CMAKE_CURRENT_LIST_DIR}/../../../../llama.cpp/include"
+        "${CMAKE_CURRENT_LIST_DIR}/../../../../llama.cpp/ggml/include"
 )
 
 add_library(llama SHARED IMPORTED)
