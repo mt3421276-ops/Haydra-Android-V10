@@ -29,6 +29,24 @@ jobs:
           sdkmanager "build-tools;35.0.0"
           sdkmanager "ndk;29.0.14206865"
 
+      - name: Get llama.cpp
+        run: |
+          git clone https://github.com/ggml-org/llama.cpp.git ../llama.cpp
+          cd ../llama.cpp
+          git checkout 4df29be
+
+      - name: Verify llama.cpp
+        run: |
+          echo "===== LLAMA.H ====="
+          ls -lh ../llama.cpp/include/llama.h
+
+          echo "===== GGML.H ====="
+          ls -lh ../llama.cpp/ggml/include/ggml.h
+
+          echo "===== LLAMA COMMIT ====="
+          cd ../llama.cpp
+          git rev-parse --short HEAD
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
