@@ -1,5 +1,5 @@
 #include <jni.h>
-#include <dlfcn.h>
+#include <string>
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -8,18 +8,12 @@ Java_com_haydra_v10_MainActivity_processMessage(
         jobject /* this */,
         jstring message) {
 
-    void *handle = dlopen("libllama.so.0", RTLD_NOW);
+    const char *input = env->GetStringUTFChars(message, nullptr);
 
-    if (handle == nullptr) {
-        return env->NewStringUTF(
-            "🐉 Haydra: فشل تحميل محرك llama.cpp"
-        );
-    }
+    std::string reply = "🐉 Haydra V11: وصلتني رسالتك: ";
+    reply += input;
 
-    dlclose(handle);
+    env->ReleaseStringUTFChars(message, input);
 
-    const char *text =
-        "🐉 Haydra Native: تم تحميل محرك llama.cpp بنجاح!";
-
-    return env->NewStringUTF(text);
+    return env->NewStringUTF(reply.c_str());
 }
