@@ -13,6 +13,12 @@ import android.view.ViewGroup;
 
 public class MainActivity extends Activity {
 
+    static {
+        System.loadLibrary("haydra");
+    }
+
+    public native String processMessage(String message);
+
     private EditText messageInput;
     private Button sendButton;
     private LinearLayout chatContainer;
@@ -47,7 +53,7 @@ public class MainActivity extends Activity {
 
         messageInput.setText("");
 
-        String reply = "🐉 وصلتني رسالتك: " + message;
+        String reply = processMessage(message);
 
         addMessage(reply, false);
 
