@@ -1,4 +1,4 @@
-name: Build Haydra V10 APK
+name: Build Haydra V11 APK
 
 on:
   push:
@@ -22,11 +22,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build APK
+      - name: Build Haydra V11
         run: gradle assembleDebug
 
-      - name: Upload APK
+      - name: Upload Haydra V11 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Haydra-V10-debug
+          name: Haydra-V11-debug
           path: app/build/outputs/apk/debug/app-debug.apk
