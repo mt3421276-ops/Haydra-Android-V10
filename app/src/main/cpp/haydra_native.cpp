@@ -1,16 +1,5 @@
 #include <jni.h>
-#include <string>
-
-extern "C"
-JNIEXPORT jstring JNICALL
-Java_com_haydra_v10_MainActivity_getNativeMessage(
-        JNIEnv *env,
-        jobject /* this */) {
-
-    return env->NewStringUTF(
-            "🐉 Haydra Native Engine V11 يعمل!"
-    );
-}
+#include <dlfcn.h>
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -19,14 +8,18 @@ Java_com_haydra_v10_MainActivity_processMessage(
         jobject /* this */,
         jstring message) {
 
-    const char *input = env->GetStringUTFChars(message, nullptr);
+    void *handle = dlopen("libllama.so.0", RTLD_NOW);
 
-    std::string reply =
-            "🐉 Haydra Native: وصلتني رسالتك: ";
+    if (handle == nullptr) {
+        return env->NewStringUTF(
+            "🐉 Haydra: فشل تحميل محرك llama.cpp"
+        );
+    }
 
-    reply += input;
+    dlclose(handle);
 
-    env->ReleaseStringUTFChars(message, input);
+    const char *text =
+        "🐉 Haydra Native: تم تحميل محرك llama.cpp بنجاح!";
 
-    return env->NewStringUTF(reply.c_str());
+    return env->NewStringUTF(text);
 }
