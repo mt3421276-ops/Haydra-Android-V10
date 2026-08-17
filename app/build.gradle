@@ -13,4 +13,10 @@ android {
         versionCode 11
         versionName "11.0"
     }
+
+    externalNativeBuild {
+        cmake {
+            path file("src/main/cpp/CMakeLists.txt")
+        }
+    }
 }
