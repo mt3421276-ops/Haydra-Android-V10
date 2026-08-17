@@ -37,10 +37,20 @@ jobs:
 
       - name: Verify llama.cpp
         run: |
-          echo "===== LLAMA.H ====="
-          ls -lh ../llama.cpp/include/llama.h
+          echo "===== CURRENT DIRECTORY ====="
+          pwd
 
-          echo "===== GGML.H ====="
+          echo "===== PROJECT ====="
+          ls -la
+
+          echo "===== PARENT ====="
+          ls -la ..
+
+          echo "===== LLAMA LOCATION ====="
+          find .. -maxdepth 3 -name llama.h -print
+
+          echo "===== EXPECTED FILES ====="
+          ls -lh ../llama.cpp/include/llama.h
           ls -lh ../llama.cpp/ggml/include/ggml.h
 
           echo "===== LLAMA COMMIT ====="
